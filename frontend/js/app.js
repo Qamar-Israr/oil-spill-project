@@ -112,6 +112,7 @@ function adaptInvestigationResponse(response, imageName) {
   const origin = response.origin || {};
   const geometry = response.geometry || {};
   const prediction = response.prediction || {};
+  const oilQuantity = response.oil_quantity || {};
   const polygon = geometry.polygon_geojson?.coordinates?.[0] || [];
 
   return {
@@ -125,7 +126,11 @@ function adaptInvestigationResponse(response, imageName) {
       lng: Number(origin.longitude)
     },
     spillAreaKm2: Number(spill.area_km2 || geometry.area_km2 || 0),
-    spillVolumeEstM3: 'Unavailable',
+    oilQuantity,
+    oilQuantityEstimate: oilQuantity,
+    spillVolumeEstM3: oilQuantity.volume_range_m3
+      ? `${oilQuantity.volume_range_m3.min}-${oilQuantity.volume_range_m3.max} m³`
+      : 'Unavailable',
     detectionConfidence: Number(spill.confidence || 0) * 100,
     originPoint: {
       lat: Number(origin.latitude),

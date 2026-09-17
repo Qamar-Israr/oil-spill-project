@@ -85,7 +85,7 @@ function renderIncidentLayers(data) {
         <span class="popup-badge badge-high">${data.detectionConfidence}% CONF</span>
       </div>
       <div class="popup-row"><span class="popup-label">Area:</span><span class="popup-val">${data.spillAreaKm2} km²</span></div>
-      <div class="popup-row"><span class="popup-label">Est. Volume:</span><span class="popup-val">${data.spillVolumeEstM3}</span></div>
+      <div class="popup-row"><span class="popup-label">ESTIMATE tonnes:</span><span class="popup-val">${formatOilQuantity(data)}</span></div>
       <div class="popup-row"><span class="popup-label">Acquired:</span><span class="popup-val">${data.acquiredUtc}</span></div>
     </div>
   `);
@@ -201,6 +201,15 @@ function renderIncidentLayers(data) {
     vesselMarkersMap.set(vessel.id, marker);
   });
 
+}
+
+function formatOilQuantity(data) {
+  const estimate = data.oilQuantityEstimate || {};
+  const range = estimate.quantity_range_tonnes || {};
+  if (!Number.isFinite(Number(range.min)) || !Number.isFinite(Number(range.max))) {
+    return 'Unavailable';
+  }
+  return `${Number(range.min).toLocaleString()}-${Number(range.max).toLocaleString()} tonnes`;
 }
 
 function setupLayerToggles() {

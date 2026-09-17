@@ -79,6 +79,19 @@ class DriftPredictionResult(BaseModel):
     forward_hours: float
 
 
+class OilQuantityEstimate(BaseModel):
+    is_estimate: bool
+    spill_area_km2: float
+    estimated_thickness_m: float
+    thickness_range_m: Dict[str, float]
+    thickness_range_microns: Dict[str, float]
+    volume_range_m3: Dict[str, float]
+    estimated_quantity_tonnes: float
+    quantity_range_tonnes: Dict[str, float]
+    oil_density_kg_per_m3: float
+    assumption: str
+
+
 class InvestigationResult(BaseModel):
     spill: SpillResult
     origin: OriginResult
@@ -87,6 +100,7 @@ class InvestigationResult(BaseModel):
     # any existing frontend code still only reading spill/origin/vessels.
     geometry: Optional[SpillGeometryResult] = None
     prediction: Optional[DriftPredictionResult] = None
+    oil_quantity: Optional[OilQuantityEstimate] = None
 
 
 class InvestigationRequest(BaseModel):

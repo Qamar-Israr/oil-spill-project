@@ -11,6 +11,7 @@ from services.ml_service import detect_spill
 from services.drift_service import estimate_origin
 from services.ais_service import find_vessels, to_vessel_result_dicts
 from services.ais_attribution import get_vessel_attribution
+from services.oil_quantity import estimate_oil_quantity
 import os
 import uuid
 
@@ -98,6 +99,7 @@ async def investigate(
     # Step 1: Detect oil spill (Member 1's model -- still a placeholder;
     # once it returns a real mask, pass spill.get("mask") below unchanged)
     spill = detect_spill(image_path)
+    oil_quantity = estimate_oil_quantity(spill.get("area_km2", 0.0))
 
     # Step 1b: use a real georeferenced bounding box if this image has one
     # (Member 1), otherwise Member 2's estimate_origin() falls back to its
@@ -140,6 +142,7 @@ async def investigate(
         "vessels": vessels,
         "geometry": origin_result["geometry"],
         "prediction": origin_result["prediction"],
+        "oil_quantity": oil_quantity,
     }
 
 

@@ -27,6 +27,9 @@ function renderIncidentSummary(data) {
   const container = document.getElementById('incident-summary-rows');
   if (!container) return; 
 
+  const oilQuantity = data.oilQuantity || data.oilQuantityEstimate || {};
+  const quantityRange = oilQuantity.quantity_range_tonnes || {};
+  const thicknessRange = oilQuantity.thickness_range_microns || {};
   
   container.innerHTML = `
     <div class="data-row">
@@ -42,6 +45,22 @@ function renderIncidentSummary(data) {
       <span class="data-value">${data.acquiredUtc}</span>
     </div>
     <div class="data-row">
+      <span class="data-label">Spill area</span>
+      <span class="data-value">${data.spillAreaKm2} km²</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Estimated Oil Quantity (tonnes)</span>
+      <span class="data-value">${formatNumber(oilQuantity.estimated_quantity_tonnes)} tonnes</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Estimated Range (tonnes)</span>
+      <span class="data-value">${formatNumber(quantityRange.min)}-${formatNumber(quantityRange.max)} tonnes</span>
+    </div>
+    <div class="data-row">
+      <span class="data-label">Thickness Assumption</span>
+      <span class="data-value">${formatNumber(thicknessRange.min)}-${formatNumber(thicknessRange.max)} µm</span>
+    </div>
+    <div class="data-row">
       <span class="data-label">Confidence</span>
       <div class="confidence-bar-container">
         <!-- Mini progress bar showing confidence percentage -->
@@ -52,6 +71,10 @@ function renderIncidentSummary(data) {
       </div>
     </div>
   `;
+}
+
+function formatNumber(value) {
+  return Number.isFinite(Number(value)) ? Number(value).toLocaleString(undefined, { maximumFractionDigits: 3 }) : '-';
 }
 
 
