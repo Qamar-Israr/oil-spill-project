@@ -27,23 +27,35 @@ mapInstance = L.map(containerId, {
     center: center,         
     zoom: 12,               
     zoomControl: false,     
-    attributionControl: true 
+    attributionControl: true,
+    preferCanvas: true
   });
 
-//  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//     attribution: '&copy; OpenStreetMap contributors',
-//     maxZoom: 19
-//   }).addTo(mapInstance);
+// Satellite imagery is the default background for the screenshot-like view.
+const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Tiles © Esri',
+  maxZoom: 19
+});
 
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-  attribution: '© Esri',
-  maxZoom: 14
+// OpenStreetMap is a free, open-data alternative when street labels are more useful.
+const streetMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors',
+  maxZoom: 19
+});
+
+satelliteMap.addTo(mapInstance);
+
+// This transparent layer adds place names and boundaries over the imagery.
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+  attribution: 'Labels © Esri',
+  maxZoom: 19,
+  opacity: 0.9
 }).addTo(mapInstance);
 
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-  attribution: '© Esri',
-  maxZoom: 14
-}).addTo(mapInstance);
+L.control.layers({
+  'Satellite imagery': satelliteMap,
+  'OpenStreetMap': streetMap
+}, null, { collapsed: true, position: 'bottomleft' }).addTo(mapInstance);
 
     spillLayerGroup = L.layerGroup().addTo(mapInstance);    
   originLayerGroup = L.layerGroup().addTo(mapInstance);   

@@ -65,10 +65,16 @@ function setupInvestigationForm() {
       return;
     }
 
+    const selectedTimestamp = new Date(timestamp);
+    if (Number.isNaN(selectedTimestamp.getTime())) {
+      setRequestStatus(status, 'Choose a valid timestamp.', true);
+      return;
+    }
+
     const formData = new FormData();
     formData.append('latitude', latitude);
     formData.append('longitude', longitude);
-    formData.append('timestamp', new Date(timestamp).toISOString());
+    formData.append('timestamp', selectedTimestamp.toISOString());
     formData.append('image', image);
 
     button.disabled = true;

@@ -17,6 +17,7 @@
     --font-one:"Doppio One", sans-serif;
     --alert-red:rgb(196, 1, 1);
     --text-main: #f7f9fc; 
+    --text-muted: #8d96a3;
     --warning-amber: #e89b29;  
     --transition-fast: 120ms ease;
 
