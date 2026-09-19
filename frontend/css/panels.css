@@ -1,8 +1,134 @@
+.investigation-banner {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 56px;
+  padding: 12px 40px;
+  background: rgba(18, 21, 27, 0.92);
+  border-bottom: 1px solid var(--border-color);
+  pointer-events: none;
+  animation: investigation-banner-enter 180ms ease-out;
+}
+
+@keyframes investigation-banner-enter {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.investigation-banner-close {
+  pointer-events: auto;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  background: transparent;
+  color: #8f9ba8;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 17px;
+}
+
+.investigation-banner-close:hover,
+.investigation-banner-close:focus-visible {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+.investigation-banner-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 230px;
+}
+
+.investigation-status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: var(--warning-amber);
+  box-shadow: 0 0 12px rgba(232, 155, 41, 0.55);
+}
+
+.investigation-banner[data-state="complete"] .investigation-status-dot {
+  background: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(76, 249, 237, 0.55);
+}
+
+.investigation-banner[data-state="error"] .investigation-status-dot {
+  background: var(--alert-red);
+  box-shadow: 0 0 12px rgba(196, 1, 1, 0.55);
+}
+
+.investigation-banner[data-state="error"] .investigation-banner-state {
+  color: var(--alert-red);
+}
+
+.investigation-banner-state,
+.investigation-banner-summary,
+.investigation-banner-checks {
+  font-family: var(--font-sans);
+}
+
+.investigation-banner-state {
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.investigation-banner-summary {
+  margin-top: 2px;
+  color: #8f9ba8;
+  font-size: 12px;
+}
+
+.investigation-banner-checks {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  gap: 7px 18px;
+  max-width: 72%;
+  overflow-x: auto;
+  color: var(--accent-cyan);
+  font-size: 11px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.investigation-banner-checks span::before {
+  content: "OK";
+  margin-right: 5px;
+  color: var(--accent-cyan);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .investigation-banner {
+    gap: 12px;
+    padding: 10px 14px;
+  }
+
+  .investigation-banner-checks {
+    justify-content: flex-start;
+    max-width: none;
+  }
+}
+
 .dashboard-layout {
   display: flex;
   width: 100%;
-  flex: 1;            
-  min-height: 0;       
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .sidebar-panel {
@@ -19,7 +145,10 @@
 }
 
 #vessel-candidate-list {
-  overflow: visible;
+  max-height: 350px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 6px;
 }
 
 #vessel-candidate-list .vessel-card {
@@ -75,14 +204,13 @@
   border-radius: 5px;
   overflow: hidden;
   min-height: 185px;
-  flex: 0 0 auto;
 }
 .footer-box {
   background-color: var(--bg-dark);
   border: 1px solid var(--border-color);
   border-radius: 5px;
   overflow: hidden;
-  flex-shrink: 0;
+ 
 }
 .panel-body {
   padding: 12px;
@@ -111,129 +239,6 @@
 
 .panel-title svg {
   display: none;
-}
-
-#investigation-form {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-#investigation-form .data-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 5px;
-  padding-bottom: 8px;
-}
-
-#investigation-form .data-label {
-  margin-right: 0;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-}
-
-#investigation-form input {
-  width: 100%;
-  min-width: 0;
-  height: 34px;
-  padding: 7px 9px;
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  outline: none;
-  background: var(--panel-bg);
-  color: var(--text-main);
-  font-family: var(--font-sans);
-  font-size: 12px;
-  transition: border-color var(--transition-fast), background-color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-#investigation-form input:hover {
-  border-color: #3a424e;
-}
-
-#investigation-form input:focus {
-  border-color: var(--accent-cyan);
-  background: var(--bg-dark);
-  box-shadow: 0 0 0 1px rgba(76, 249, 237, 0.18);
-}
-
-#investigation-form input[type="datetime-local"] {
-  color-scheme: dark;
-}
-
-#investigation-form input[type="file"] {
-  padding: 4px;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-#investigation-form input[type="file"]::file-selector-button {
-  height: 24px;
-  margin-right: 8px;
-  padding: 0 8px;
-  border: 1px solid var(--border-color);
-  border-radius: 2px;
-  background: var(--bg-dark);
-  color: var(--text-main);
-  font-family: var(--font-sans);
-  font-size: 11px;
-  cursor: pointer;
-}
-
-#investigation-form input[type="file"]::file-selector-button:hover {
-  border-color: var(--accent-cyan);
-  color: var(--accent-cyan);
-}
-
-#investigation-form input[type="number"] {
-  appearance: textfield;
-}
-
-#investigation-form input[type="number"]::-webkit-inner-spin-button,
-#investigation-form input[type="number"]::-webkit-outer-spin-button {
-  margin: 0;
-  opacity: 0.5;
-}
-
-#investigate-button {
-  min-height: 34px;
-  margin-top: 2px;
-  border: 1px solid var(--accent-cyan);
-  border-radius: 3px;
-  background: rgba(76, 249, 237, 0.08);
-  color: var(--accent-cyan);
-  font-family: var(--font-one);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: background-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast);
-}
-
-#investigate-button:hover:not(:disabled) {
-  background: var(--accent-cyan);
-  color: var(--bg-dark);
-  box-shadow: 0 0 12px rgba(76, 249, 237, 0.18);
-}
-
-#investigate-button:disabled {
-  border-color: var(--border-color);
-  background: var(--panel-bg);
-  color: var(--text-muted);
-  cursor: wait;
-}
-
-#investigation-status {
-  min-height: 18px;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
-  font-size: 11px;
-}
-
-#investigation-status[data-state="error"] {
-  color: var(--alert-red);
 }
 
 

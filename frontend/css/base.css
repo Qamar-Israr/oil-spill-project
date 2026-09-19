@@ -7,6 +7,10 @@
   padding: 0;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 :root {
     --bg-dark: #080404; 
     --panel-bg: #12151b;  
@@ -17,7 +21,6 @@
     --font-one:"Doppio One", sans-serif;
     --alert-red:rgb(196, 1, 1);
     --text-main: #f7f9fc; 
-    --text-muted: #8d96a3;
     --warning-amber: #e89b29;  
     --transition-fast: 120ms ease;
 
@@ -158,56 +161,4 @@ html, body {
 
 .app-view.active {
   display: flex;
-}
-
-.legend-box {
-    width: 12px;
-    height: 12px;
-    display: inline-block;
-    border: 1px solid #555;
-}
-
-.legend-dot {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.legend-circle {
-    width: 12px;
-    height: 12px;
-    border: 2px solid;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.legend-line {
-    width: 22px;
-    height: 3px;
-    display: inline-block;
-}
-
-.legend-spill {
-    background: #ff6b35;
-}
-
-.legend-origin {
-    background: #e63946;
-}
-
-.legend-uncertainty {
-    border-color: #e63946;
-}
-
-.legend-drift {
-    background: #ffd166;
-}
-
-.legend-vessel {
-    background: #2196f3;
-}
-
-.legend-prediction {
-    background: rgba(255, 193, 7, 0.45);
 }
