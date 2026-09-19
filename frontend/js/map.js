@@ -3,10 +3,179 @@ let spillLayerGroup = null;
 let originLayerGroup = null;   
 let driftLayerGroup = null;    
 let vesselsLayerGroup = null;  
-let predictionLayerGroup = L.featureGroup();
 let vesselMarkersMap = new Map();  
 let vesselTracksMap = new Map();   
 let currentIncident = null; 
+// ---------------------------------------------------------------------------
+// Vessel track styling
+//   candidates  -> medium-width lines in their risk colour
+//   selected    -> thick, bright line with a soft white halo
+//   others      -> faded while another vessel is selected
+//   AIS gap     -> the silent section of the track is dashed
+//   direction   -> small arrow markers along the track (oldest -> newest point)
+// ---------------------------------------------------------------------------
+const RISK_COLORS = {
+  high: { base: '#ff0000', bright: '#ff7a7a' },
+  med:  { base: '#fab003', bright: '#ffe066' },
+  low:  { base: '#0059ff', bright: '#6aa5ff' }
+};
+
+const TRACK_STATES = {
+  normal:   { weight: 3, opacity: 0.85, gapDash: '6, 8',   arrowSize: 13, arrowOpacity: 1 },
+  faded:    { weight: 2, opacity: 0.3,  gapDash: '4, 8',   arrowSize: 13, arrowOpacity: 0.35 },
+  selected: { weight: 6, opacity: 1,    gapDash: '10, 10', arrowSize: 18, arrowOpacity: 1 }
+};
+
+const MAX_ARROWS_PER_TRACK = 8;
+const FADED_VESSEL_MARKER_OPACITY = 0.35;
+
+function riskKey(score) {
+  if (score >= 70) return 'high';
+  if (score >= 40) return 'med';
+  return 'low';
+}
+
+// Splits a track into consecutive runs of "normal" and "AIS gap" edges.
+// gapRanges are [startIndex, endIndex] pairs into the track's points; the
+// edges between those points are the section where the transponder was silent.
+function splitAtGaps(points, gapRanges) {
+  const gapEdges = new Set();
+  gapRanges.forEach(([start, end]) => {
+    for (let i = start; i < end; i++) gapEdges.add(i);
+  });
+
+  const segments = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const isGap = gapEdges.has(i);
+    const last = segments[segments.length - 1];
+    if (last && last.isGap === isGap) {
+      last.latlngs.push(points[i + 1]);
+    } else {
+      segments.push({ isGap, latlngs: [points[i], points[i + 1]] });
+    }
+  }
+  return segments;
+}
+
+// Compass bearing (0 = north, clockwise) as it appears on screen. Web Mercator
+// preserves angles, so this is the same at every zoom level.
+function bearingDeg(from, to) {
+  const a = L.CRS.EPSG3857.project(L.latLng(from));
+  const b = L.CRS.EPSG3857.project(L.latLng(to));
+  return (Math.atan2(b.x - a.x, b.y - a.y) * 180) / Math.PI;
+}
+
+// Arrows are near-white with a dark outline so they stay readable on top of
+// every risk colour (a blue arrow on a blue line would disappear).
+const ARROW_FILL = '#f7f9fc';
+
+function arrowIcon(angleDeg, size) {
+  return L.divIcon({
+    className: 'track-arrow-icon',
+    html: `<div style="width:${size}px;height:${size}px;transform:rotate(${angleDeg}deg);">
+      <svg width="${size}" height="${size}" viewBox="0 0 12 12" style="display:block" fill="${ARROW_FILL}" stroke="#0a0c10" stroke-width="1">
+        <polygon points="6,0.5 11,11 6,8.2 1,11"/>
+      </svg>
+    </div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+}
+
+// Long tracks would be cluttered with an arrow on every edge, so cap the count
+// and spread the arrows evenly along the track.
+function pickEvenly(items, max) {
+  if (items.length <= max) return items;
+  return Array.from({ length: max }, (_, k) => items[Math.floor(((k + 0.5) * items.length) / max)]);
+}
+
+function buildTrack(vessel, risk) {
+  const points = vessel.trackHistory;
+  const gapRanges = Array.isArray(vessel.aisGapRanges) ? vessel.aisGapRanges : [];
+  const { base } = RISK_COLORS[risk];
+  const normal = TRACK_STATES.normal;
+
+  // Soft halo under the whole track; only visible while the vessel is selected.
+  const halo = L.polyline(points, { color: '#ffffff', weight: 14, opacity: 0, interactive: false });
+  vesselsLayerGroup.addLayer(halo);
+
+  const segments = splitAtGaps(points, gapRanges).map(({ latlngs, isGap }) => {
+    const line = L.polyline(latlngs, {
+      color: base,
+      weight: normal.weight,
+      opacity: normal.opacity,
+      lineCap: isGap ? 'butt' : 'round',
+      dashArray: isGap ? normal.gapDash : null
+    });
+    vesselsLayerGroup.addLayer(line);
+    return { line, isGap };
+  });
+
+  // One arrow at the middle of each edge, pointing in the direction of travel.
+  const edges = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const [a, b] = [points[i], points[i + 1]];
+    if (a[0] !== b[0] || a[1] !== b[1]) edges.push([a, b]);   // skip zero-length edges
+  }
+  const arrows = pickEvenly(edges, MAX_ARROWS_PER_TRACK).map(([a, b]) => {
+    const angle = bearingDeg(a, b);
+    const marker = L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], {
+      icon: arrowIcon(angle, normal.arrowSize),
+      interactive: false,
+      keyboard: false
+    });
+    vesselsLayerGroup.addLayer(marker);
+    return {
+      marker,
+      icons: {
+        normal: marker.options.icon,
+        faded: marker.options.icon,
+        selected: arrowIcon(angle, TRACK_STATES.selected.arrowSize)
+      }
+    };
+  });
+
+  return { risk, halo, segments, arrows };
+}
+
+// Applies the normal / faded / selected look to every track. Pass null to
+// clear the selection.
+function applyTrackStyles(selectedId) {
+  const hasSelection = selectedId != null && vesselTracksMap.has(selectedId);
+
+  vesselTracksMap.forEach((track, id) => {
+    const state = !hasSelection ? 'normal' : (id === selectedId ? 'selected' : 'faded');
+    const look = TRACK_STATES[state];
+    const colors = RISK_COLORS[track.risk];
+    const color = state === 'selected' ? colors.bright : colors.base;
+
+    track.halo.setStyle({ opacity: state === 'selected' ? 0.3 : 0 });
+
+    track.segments.forEach(({ line, isGap }) => {
+      line.setStyle({
+        color,
+        weight: look.weight,
+        opacity: look.opacity,
+        dashArray: isGap ? look.gapDash : null
+      });
+    });
+
+    track.arrows.forEach(({ marker, icons }) => {
+      marker.setIcon(icons[state]);
+      marker.setOpacity(look.arrowOpacity);
+    });
+
+    const vesselMarker = vesselMarkersMap.get(id);
+    if (vesselMarker) {
+      vesselMarker.setOpacity(state === 'faded' ? FADED_VESSEL_MARKER_OPACITY : 1);
+    }
+
+    if (state === 'selected') {
+      track.halo.bringToFront();
+      track.segments.forEach(({ line }) => line.bringToFront());
+    }
+  });
+}
 
 
 
@@ -28,47 +197,35 @@ mapInstance = L.map(containerId, {
     center: center,         
     zoom: 12,               
     zoomControl: false,     
-    attributionControl: true,
-    preferCanvas: true
+    attributionControl: true 
   });
 
-// Satellite imagery is the default background for the screenshot-like view.
-const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Tiles © Esri',
-  maxZoom: 19
-});
+//  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+//     attribution: '&copy; OpenStreetMap contributors',
+//     maxZoom: 19
+//   }).addTo(mapInstance);
 
-// OpenStreetMap is a free, open-data alternative when street labels are more useful.
-const streetMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors',
-  maxZoom: 19
-});
-
-satelliteMap.addTo(mapInstance);
-
-// This transparent layer adds place names and boundaries over the imagery.
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
-  attribution: 'Labels © Esri',
-  maxZoom: 19,
-  opacity: 0.9
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '© Esri',
+  maxZoom: 14
 }).addTo(mapInstance);
 
-L.control.layers({
-  'Satellite imagery': satelliteMap,
-  'OpenStreetMap': streetMap
-}, null, { collapsed: true, position: 'bottomleft' }).addTo(mapInstance);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+  attribution: '© Esri',
+  maxZoom: 14
+}).addTo(mapInstance);
 
-spillLayerGroup = L.featureGroup().addTo(mapInstance);
-originLayerGroup = L.featureGroup().addTo(mapInstance);
-driftLayerGroup = L.featureGroup().addTo(mapInstance);
-vesselsLayerGroup = L.featureGroup().addTo(mapInstance);
-
-predictionLayerGroup.addTo(mapInstance);
+    spillLayerGroup = L.layerGroup().addTo(mapInstance);    
+  originLayerGroup = L.layerGroup().addTo(mapInstance);   
+  driftLayerGroup = L.layerGroup().addTo(mapInstance);    
+  vesselsLayerGroup = L.layerGroup().addTo(mapInstance);
 
  renderIncidentLayers(incidentData);
 
   
   setupLayerToggles();
+
+  requestAnimationFrame(() => mapInstance?.invalidateSize());
 
 }
 
@@ -79,7 +236,7 @@ function renderIncidentLayers(data) {
   originLayerGroup.clearLayers();
   driftLayerGroup.clearLayers();
   vesselsLayerGroup.clearLayers();
-  predictionLayerGroup.clearLayers();
+  
   
   vesselMarkersMap.clear();
   vesselTracksMap.clear();
@@ -148,75 +305,41 @@ function renderIncidentLayers(data) {
 
   originLayerGroup.addLayer(originCircle);
   originLayerGroup.addLayer(originMarker);
-  // Predicted +6h spill spread
-  if (data.predictedPolygonGeoJSON) {
-    const predictionLayer = L.geoJSON(data.predictedPolygonGeoJSON, {
-      style: {
-        color: '#f59e0b',
-        weight: 2,
-        dashArray: '6, 6',
-        fillColor: '#f59e0b',
-        fillOpacity: 0.20
-      }
-    });
 
-    predictionLayer.bindPopup(`
-      <strong>Predicted Spill Spread</strong><br>
-      Forecast: +6 hours
-    `);
+ 
 
-    predictionLayerGroup.addLayer(predictionLayer);
-  }
+  const driftPolyline = L.polyline(data.driftPath, {
+    color: '#3fb8af',       
+    weight: 3,              
+    dashArray: '8, 6',      
+    opacity: 0.9            
+  });
+  driftLayerGroup.addLayer(driftPolyline);
 
-
-  // Candidate vessels
+  
   data.candidates.forEach(vessel => {
-
-    // vessel code...
+    // Determine risk level based on suspicion score
     const isHighRisk = vessel.suspicionScore >= 70;
-    const isMedRisk = vessel.suspicionScore >= 50 && vessel.suspicionScore < 70;
-    // Vessel trajectory from AIS track history
-    if (Array.isArray(vessel.trackHistory) && vessel.trackHistory.length > 1) {
-      const trackColor = isHighRisk
-        ? '#ff3b30'
-        : isMedRisk
-          ? '#f59e0b'
-          : '#2563eb';
+    const isMedRisk = vessel.suspicionScore >= 40 && vessel.suspicionScore < 70;
+    
+    // Color: high risk = orange-red, medium = amber, low = grey
+    const vesselColor = isHighRisk ? '#ff0000' : (isMedRisk ? '#efff0a' : '#2ad300');
 
-      const vesselTrack = L.polyline(vessel.trackHistory, {
-        color: trackColor,
-        weight: 5,
-        opacity: 0.95,
-        lineCap: 'round',
-        lineJoin: 'round',
-        dashArray: vessel.scoreBreakdown?.aisGapDetected ? '8, 6' : null
-      });
+    
+    // Track line(s), AIS-gap dashes and direction arrows (see buildTrack)
+    vesselTracksMap.set(vessel.id, buildTrack(vessel, riskKey(vessel.suspicionScore)));
 
-      vesselTrack.bindTooltip(`${vessel.name} trajectory`);
-
-      vesselsLayerGroup.addLayer(vesselTrack);
-
-      // Save it so clicking the vessel can highlight it
-      vesselTracksMap.set(vessel.id, vesselTrack);
-    }
-
+    
     const vesselIcon = L.divIcon({
-      className: 'vessel-marker',
-      html: `
-        <div style="
-          width: 18px;
-          height: 18px;
-          background: #2563eb;
-          border: 3px solid white;
-          border-radius: 50% 50% 50% 0;
-          transform: rotate(-45deg);
-          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-        "></div>
-      `,
+      className: 'vessel-marker-icon',
+      html: `<div style="transform: rotate(${vessel.heading}deg); transform-origin: center;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="${vesselColor}" stroke="#0a0c10" stroke-width="1.5">
+          <polygon points="12,2 18,20 12,16 6,20"/>
+        </svg>
+      </div>`,
       iconSize: [24, 24],
-      iconAnchor: [12, 12],
-      popupAnchor: [0, -12]
-      });
+      iconAnchor: [12, 12]  
+    });
 
     
     const marker = L.marker([vessel.position.lat, vessel.position.lng], { icon: vesselIcon });
@@ -241,36 +364,6 @@ function renderIncidentLayers(data) {
     vesselsLayerGroup.addLayer(marker);
     vesselMarkersMap.set(vessel.id, marker);
   });
-  // Automatically fit map to all investigation layers
-  const bounds = L.latLngBounds([]);
-
-  // Spill polygon
-  if (spillLayerGroup.getLayers().length > 0) {
-    bounds.extend(spillLayerGroup.getBounds());
-  }
-
-  // Origin + uncertainty circle
-  if (originLayerGroup.getLayers().length > 0) {
-    bounds.extend(originLayerGroup.getBounds());
-  }
-
-  // Drift / backtracking path
-  if (driftLayerGroup.getLayers().length > 0) {
-    bounds.extend(driftLayerGroup.getBounds());
-  }
-
-  // Vessel trajectories and markers
-  if (vesselsLayerGroup.getLayers().length > 0) {
-    bounds.extend(vesselsLayerGroup.getBounds());
-  }
-
-  // Automatically zoom to all relevant investigation layers
-  if (bounds.isValid()) {
-    mapInstance.fitBounds(bounds, {
-      padding: [50, 50],
-      maxZoom: 14
-    });
-  }
 
 }
 
@@ -289,7 +382,6 @@ function setupLayerToggles() {
   const toggleOrigin = document.getElementById('toggle-origin');
   const toggleDrift = document.getElementById('toggle-drift');
   const toggleVessels = document.getElementById('toggle-vessels');
-  const togglePrediction = document.getElementById('toggle-prediction');
 
  
   if (toggleSpill) {
@@ -316,54 +408,33 @@ function setupLayerToggles() {
       else mapInstance.removeLayer(vesselsLayerGroup);
     });
   }
-  if (togglePrediction) {
+}
 
-    togglePrediction.addEventListener('change', (e) => {
-
-      if (e.target.checked) mapInstance.addLayer(predictionLayerGroup);
-
-      else mapInstance.removeLayer(predictionLayerGroup);
-
-    });
-
-  }
+// Leaflet doesn't notice when its container is hidden and shown again (e.g.
+// switching between the Dashboard and Incidents Archive views).
+export function refreshMapSize() {
+  if (mapInstance) mapInstance.invalidateSize();
 }
 
 export function highlightVesselOnMap(vesselId) {
-  if (!mapInstance) return;
+  if (!mapInstance) return; // Safety check
 
-  vesselTracksMap.forEach((track, trackId) => {
-    const isSelected = String(trackId) === String(vesselId);
+  // Selected track: thick + bright. Every other track: faded.
+  applyTrackStyles(vesselId);
 
-    if (isSelected) {
-      track.setStyle({
-        weight: 7,
-        opacity: 1
-      });
-
-      track.bringToFront();
-    } else {
-      track.setStyle({
-        weight: 3,
-        opacity: 0.15
-      });
-    }
-  });
-
+  // Center map on the selected vessel and open its popup
   const marker = vesselMarkersMap.get(vesselId);
-
   if (marker) {
-    marker.openPopup();
-    mapInstance.panTo(marker.getLatLng());
+    mapInstance.panTo(marker.getLatLng());  // Smooth pan to vessel
+    marker.openPopup();                     // Show vessel details popup
   }
 }
 
 /**
- * Reset all map highlights back to normal styling
- * Called when a vessel card is deselected
+ * Clear the selection: every track goes back to its normal look.
+ * Called when a vessel card is deselected.
  */
 export function resetMapHighlights() {
-  if (!currentIncident) return;
-  // Re-render all layers (restores original styles)
-  renderIncidentLayers(currentIncident);
+  if (!mapInstance) return;
+  applyTrackStyles(null);
 }

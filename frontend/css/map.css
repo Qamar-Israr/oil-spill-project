@@ -1,6 +1,8 @@
 .map-container-wrapper {
   position: relative;     
-  flex: 1;                
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
   height: 100%;
   background-color: #06080b;  
   display: flex;
@@ -10,7 +12,9 @@
 
 #map {
   width: 100%;
-  flex: 1;                
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
   background: #0a0c10;    
   z-index: 1;             
 }
@@ -147,9 +151,6 @@
 .color-drift { background-color: transparent; border: 1px dashed var(--accent-cyan); }
 
 .color-vessels { background-color: #0062ff; border: 1px solid #0062ff; }
-.color-prediction {
-    background: #f59e0b;
-}
 
 .vessel-marker-icon {
   transition: transform 0.2s ease;
