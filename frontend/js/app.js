@@ -146,6 +146,7 @@ function adaptInvestigationResponse(response, imageName) {
     spillPolygon: polygon.map(([lng, lat]) => [lat, lng]),
     // The backend returns a predicted polygon, not a time-stepped path.
     // Leave this empty rather than fabricating drift waypoints.
+    predictedPolygonGeoJSON: prediction.predicted_polygon_geojson || null,
     driftPath: [],
     windVector: 'Unavailable',
     candidates: (response.vessels || []).map(adaptVessel)

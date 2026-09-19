@@ -3,6 +3,7 @@ let spillLayerGroup = null;
 let originLayerGroup = null;   
 let driftLayerGroup = null;    
 let vesselsLayerGroup = null;  
+let predictionLayerGroup = L.featureGroup();
 let vesselMarkersMap = new Map();  
 let vesselTracksMap = new Map();   
 let currentIncident = null; 
@@ -57,10 +58,12 @@ L.control.layers({
   'OpenStreetMap': streetMap
 }, null, { collapsed: true, position: 'bottomleft' }).addTo(mapInstance);
 
-    spillLayerGroup = L.layerGroup().addTo(mapInstance);    
-  originLayerGroup = L.layerGroup().addTo(mapInstance);   
-  driftLayerGroup = L.layerGroup().addTo(mapInstance);    
-  vesselsLayerGroup = L.layerGroup().addTo(mapInstance);
+spillLayerGroup = L.featureGroup().addTo(mapInstance);
+originLayerGroup = L.featureGroup().addTo(mapInstance);
+driftLayerGroup = L.featureGroup().addTo(mapInstance);
+vesselsLayerGroup = L.featureGroup().addTo(mapInstance);
+
+predictionLayerGroup.addTo(mapInstance);
 
  renderIncidentLayers(incidentData);
 
@@ -76,7 +79,7 @@ function renderIncidentLayers(data) {
   originLayerGroup.clearLayers();
   driftLayerGroup.clearLayers();
   vesselsLayerGroup.clearLayers();
-  
+  predictionLayerGroup.clearLayers();
   
   vesselMarkersMap.clear();
   vesselTracksMap.clear();
@@ -145,49 +148,75 @@ function renderIncidentLayers(data) {
 
   originLayerGroup.addLayer(originCircle);
   originLayerGroup.addLayer(originMarker);
+  // Predicted +6h spill spread
+  if (data.predictedPolygonGeoJSON) {
+    const predictionLayer = L.geoJSON(data.predictedPolygonGeoJSON, {
+      style: {
+        color: '#f59e0b',
+        weight: 2,
+        dashArray: '6, 6',
+        fillColor: '#f59e0b',
+        fillOpacity: 0.20
+      }
+    });
 
- 
+    predictionLayer.bindPopup(`
+      <strong>Predicted Spill Spread</strong><br>
+      Forecast: +6 hours
+    `);
 
-  const driftPolyline = L.polyline(data.driftPath, {
-    color: '#3fb8af',       
-    weight: 3,              
-    dashArray: '8, 6',      
-    opacity: 0.9            
-  });
-  driftLayerGroup.addLayer(driftPolyline);
+    predictionLayerGroup.addLayer(predictionLayer);
+  }
 
-  
+
+  // Candidate vessels
   data.candidates.forEach(vessel => {
-    // Determine risk level based on suspicion score
+
+    // vessel code...
     const isHighRisk = vessel.suspicionScore >= 70;
-    const isMedRisk = vessel.suspicionScore >= 40 && vessel.suspicionScore < 70;
-    
-    // Color: high risk = orange-red, medium = amber, low = grey
-    const vesselColor = isHighRisk ? '#ff0000' : (isMedRisk ? '#efff0a' : '#2ad300');
+    const isMedRisk = vessel.suspicionScore >= 50 && vessel.suspicionScore < 70;
+    // Vessel trajectory from AIS track history
+    if (Array.isArray(vessel.trackHistory) && vessel.trackHistory.length > 1) {
+      const trackColor = isHighRisk
+        ? '#ff3b30'
+        : isMedRisk
+          ? '#f59e0b'
+          : '#2563eb';
 
-    
-    const trackPolyline = L.polyline(vessel.trackHistory, {
-      color: isHighRisk ? '#ff0000' : (isMedRisk ? '#fab003' : '#0059ff'),    
-      weight: isHighRisk ? 2.5 : 1.8,  
-      opacity: isHighRisk ? 0.8 : 0.6, 
-      
-      dashArray: vessel.scoreBreakdown.aisGapDetected ? '3, 4' : null
-    });
-    vesselsLayerGroup.addLayer(trackPolyline);
-    // Store reference in map for highlighting later
-    vesselTracksMap.set(vessel.id, trackPolyline);
+      const vesselTrack = L.polyline(vessel.trackHistory, {
+        color: trackColor,
+        weight: 5,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round',
+        dashArray: vessel.scoreBreakdown?.aisGapDetected ? '8, 6' : null
+      });
 
-    
+      vesselTrack.bindTooltip(`${vessel.name} trajectory`);
+
+      vesselsLayerGroup.addLayer(vesselTrack);
+
+      // Save it so clicking the vessel can highlight it
+      vesselTracksMap.set(vessel.id, vesselTrack);
+    }
+
     const vesselIcon = L.divIcon({
-      className: 'vessel-marker-icon',
-      html: `<div style="transform: rotate(${vessel.heading}deg); transform-origin: center;">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="${vesselColor}" stroke="#0a0c10" stroke-width="1.5">
-          <polygon points="12,2 18,20 12,16 6,20"/>
-        </svg>
-      </div>`,
+      className: 'vessel-marker',
+      html: `
+        <div style="
+          width: 18px;
+          height: 18px;
+          background: #2563eb;
+          border: 3px solid white;
+          border-radius: 50% 50% 50% 0;
+          transform: rotate(-45deg);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        "></div>
+      `,
       iconSize: [24, 24],
-      iconAnchor: [12, 12]  
-    });
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
+      });
 
     
     const marker = L.marker([vessel.position.lat, vessel.position.lng], { icon: vesselIcon });
@@ -212,6 +241,36 @@ function renderIncidentLayers(data) {
     vesselsLayerGroup.addLayer(marker);
     vesselMarkersMap.set(vessel.id, marker);
   });
+  // Automatically fit map to all investigation layers
+  const bounds = L.latLngBounds([]);
+
+  // Spill polygon
+  if (spillLayerGroup.getLayers().length > 0) {
+    bounds.extend(spillLayerGroup.getBounds());
+  }
+
+  // Origin + uncertainty circle
+  if (originLayerGroup.getLayers().length > 0) {
+    bounds.extend(originLayerGroup.getBounds());
+  }
+
+  // Drift / backtracking path
+  if (driftLayerGroup.getLayers().length > 0) {
+    bounds.extend(driftLayerGroup.getBounds());
+  }
+
+  // Vessel trajectories and markers
+  if (vesselsLayerGroup.getLayers().length > 0) {
+    bounds.extend(vesselsLayerGroup.getBounds());
+  }
+
+  // Automatically zoom to all relevant investigation layers
+  if (bounds.isValid()) {
+    mapInstance.fitBounds(bounds, {
+      padding: [50, 50],
+      maxZoom: 14
+    });
+  }
 
 }
 
@@ -230,6 +289,7 @@ function setupLayerToggles() {
   const toggleOrigin = document.getElementById('toggle-origin');
   const toggleDrift = document.getElementById('toggle-drift');
   const toggleVessels = document.getElementById('toggle-vessels');
+  const togglePrediction = document.getElementById('toggle-prediction');
 
  
   if (toggleSpill) {
@@ -256,26 +316,45 @@ function setupLayerToggles() {
       else mapInstance.removeLayer(vesselsLayerGroup);
     });
   }
+  if (togglePrediction) {
+
+    togglePrediction.addEventListener('change', (e) => {
+
+      if (e.target.checked) mapInstance.addLayer(predictionLayerGroup);
+
+      else mapInstance.removeLayer(predictionLayerGroup);
+
+    });
+
+  }
 }
 
 export function highlightVesselOnMap(vesselId) {
-  if (!mapInstance) return; // Safety check
+  if (!mapInstance) return;
 
-  // Update all track lines: make selected one bold, others dim
-  vesselTracksMap.forEach((polyline, id) => {
-    if (id === vesselId) {
-      polyline.setStyle({ weight: 4, opacity: 1 });  // Bold + visible
-      polyline.bringToFront();                        // Draw on top
+  vesselTracksMap.forEach((track, trackId) => {
+    const isSelected = String(trackId) === String(vesselId);
+
+    if (isSelected) {
+      track.setStyle({
+        weight: 7,
+        opacity: 1
+      });
+
+      track.bringToFront();
     } else {
-      polyline.setStyle({ weight: 1.5, opacity: 0.3 }); // Dim
+      track.setStyle({
+        weight: 3,
+        opacity: 0.15
+      });
     }
   });
 
-  // Center map on the selected vessel and open its popup
   const marker = vesselMarkersMap.get(vesselId);
+
   if (marker) {
-    mapInstance.panTo(marker.getLatLng());  // Smooth pan to vessel
-    marker.openPopup();                     // Show vessel details popup
+    marker.openPopup();
+    mapInstance.panTo(marker.getLatLng());
   }
 }
 
