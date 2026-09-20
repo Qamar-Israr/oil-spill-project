@@ -145,10 +145,7 @@
 }
 
 #vessel-candidate-list {
-  max-height: 350px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 6px;
+  overflow: visible;
 }
 
 #vessel-candidate-list .vessel-card {
@@ -204,6 +201,7 @@
   border-radius: 5px;
   overflow: hidden;
   min-height: 185px;
+  flex: 0 0 auto;
 }
 .footer-box {
   background-color: var(--bg-dark);
@@ -239,6 +237,85 @@
 
 .panel-title svg {
   display: none;
+}
+
+#investigation-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#investigation-form .data-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+  padding-bottom: 8px;
+}
+
+#investigation-form .data-label {
+  margin-right: 0;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+#investigation-form input {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  outline: none;
+  background: var(--panel-bg);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 12px;
+}
+
+#investigation-form input[type="datetime-local"] {
+  color-scheme: dark;
+}
+
+#investigation-form input[type="file"] {
+  padding: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#investigation-form input[type="file"]::file-selector-button {
+  height: 24px;
+  margin-right: 8px;
+  padding: 0 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 2px;
+  background: var(--bg-dark);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#investigate-button {
+  min-height: 34px;
+  margin-top: 2px;
+  border: 1px solid var(--accent-cyan);
+  border-radius: 3px;
+  background: rgba(76, 249, 237, 0.08);
+  color: var(--accent-cyan);
+  font-family: var(--font-one);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+#investigation-status {
+  min-height: 18px;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
 }
 
 

@@ -2,6 +2,7 @@ let mapInstance = null;
 let spillLayerGroup = null;    
 let originLayerGroup = null;   
 let driftLayerGroup = null;    
+let predictionLayerGroup = null;
 let vesselsLayerGroup = null;  
 let vesselMarkersMap = new Map();  
 let vesselTracksMap = new Map();   
@@ -26,7 +27,7 @@ const TRACK_STATES = {
   selected: { weight: 6, opacity: 1,    gapDash: '10, 10', arrowSize: 18, arrowOpacity: 1 }
 };
 
-const MAX_ARROWS_PER_TRACK = 8;
+const MAX_ARROWS_PER_TRACK = 4;
 const FADED_VESSEL_MARKER_OPACITY = 0.35;
 
 function riskKey(score) {
@@ -113,18 +114,29 @@ function buildTrack(vessel, risk) {
 
   // One arrow at the middle of each edge, pointing in the direction of travel.
   const edges = [];
+
   for (let i = 0; i < points.length - 1; i++) {
     const [a, b] = [points[i], points[i + 1]];
-    if (a[0] !== b[0] || a[1] !== b[1]) edges.push([a, b]);   // skip zero-length edges
+
+    if (a[0] !== b[0] || a[1] !== b[1]) {
+      edges.push([a, b]);
+    }
   }
-  const arrows = pickEvenly(edges, MAX_ARROWS_PER_TRACK).map(([a, b]) => {
+
+  const arrows = [edges[edges.length - 1]].map(([a, b]) => {
     const angle = bearingDeg(a, b);
-    const marker = L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], {
-      icon: arrowIcon(angle, normal.arrowSize),
-      interactive: false,
-      keyboard: false
-    });
+
+    const marker = L.marker(
+      [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2],
+      {
+        icon: arrowIcon(angle, normal.arrowSize),
+        interactive: false,
+        keyboard: false
+      }
+    );
+
     vesselsLayerGroup.addLayer(marker);
+
     return {
       marker,
       icons: {
@@ -197,28 +209,33 @@ mapInstance = L.map(containerId, {
     center: center,         
     zoom: 12,               
     zoomControl: false,     
-    attributionControl: true 
+    attributionControl: true,
+    preferCanvas: true
   });
 
-//  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//     attribution: '&copy; OpenStreetMap contributors',
-//     maxZoom: 19
-//   }).addTo(mapInstance);
+  const satelliteMap = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Tiles &copy; Esri',
+    maxZoom: 19
+  }).addTo(mapInstance);
+  const streetMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+    maxZoom: 19
+  });
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', {
+    attribution: 'Labels &copy; Esri',
+    maxZoom: 19,
+    opacity: 0.9
+  }).addTo(mapInstance);
+  L.control.layers({
+    'Satellite imagery': satelliteMap,
+    'OpenStreetMap': streetMap
+  }, null, { collapsed: true, position: 'bottomleft' }).addTo(mapInstance);
 
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
-  attribution: '© Esri',
-  maxZoom: 14
-}).addTo(mapInstance);
-
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
-  attribution: '© Esri',
-  maxZoom: 14
-}).addTo(mapInstance);
-
-    spillLayerGroup = L.layerGroup().addTo(mapInstance);    
-  originLayerGroup = L.layerGroup().addTo(mapInstance);   
-  driftLayerGroup = L.layerGroup().addTo(mapInstance);    
-  vesselsLayerGroup = L.layerGroup().addTo(mapInstance);
+    spillLayerGroup = L.featureGroup().addTo(mapInstance);
+  originLayerGroup = L.featureGroup().addTo(mapInstance);
+  driftLayerGroup = L.featureGroup().addTo(mapInstance);
+  predictionLayerGroup = L.featureGroup().addTo(mapInstance);
+  vesselsLayerGroup = L.featureGroup().addTo(mapInstance);
 
  renderIncidentLayers(incidentData);
 
@@ -235,6 +252,7 @@ function renderIncidentLayers(data) {
   spillLayerGroup.clearLayers();
   originLayerGroup.clearLayers();
   driftLayerGroup.clearLayers();
+  predictionLayerGroup.clearLayers();
   vesselsLayerGroup.clearLayers();
   
   
@@ -306,6 +324,20 @@ function renderIncidentLayers(data) {
   originLayerGroup.addLayer(originCircle);
   originLayerGroup.addLayer(originMarker);
 
+  if (data.predictedPolygonGeoJSON) {
+    const predictionLayer = L.geoJSON(data.predictedPolygonGeoJSON, {
+      style: {
+        color: '#f59e0b',
+        weight: 2,
+        dashArray: '6, 6',
+        fillColor: '#f59e0b',
+        fillOpacity: 0.2
+      }
+    });
+    predictionLayer.bindPopup('<strong>Predicted Spill Spread</strong><br>Forecast: +6 hours');
+    predictionLayerGroup.addLayer(predictionLayer);
+  }
+
  
 
   const driftPolyline = L.polyline(data.driftPath, {
@@ -327,7 +359,9 @@ function renderIncidentLayers(data) {
 
     
     // Track line(s), AIS-gap dashes and direction arrows (see buildTrack)
-    vesselTracksMap.set(vessel.id, buildTrack(vessel, riskKey(vessel.suspicionScore)));
+    if (Array.isArray(vessel.trackHistory) && vessel.trackHistory.length > 1) {
+      vesselTracksMap.set(vessel.id, buildTrack(vessel, riskKey(vessel.suspicionScore)));
+    }
 
     
     const vesselIcon = L.divIcon({
@@ -342,6 +376,11 @@ function renderIncidentLayers(data) {
     });
 
     
+    const hasPosition = vessel.position &&
+      Number.isFinite(vessel.position.lat) &&
+      Number.isFinite(vessel.position.lng);
+    if (!hasPosition) return;
+
     const marker = L.marker([vessel.position.lat, vessel.position.lng], { icon: vesselIcon });
 
 
@@ -365,6 +404,13 @@ function renderIncidentLayers(data) {
     vesselMarkersMap.set(vessel.id, marker);
   });
 
+  const bounds = L.latLngBounds([]);
+  [spillLayerGroup, originLayerGroup, driftLayerGroup, predictionLayerGroup, vesselsLayerGroup]
+    .forEach((layerGroup) => {
+      if (layerGroup.getLayers().length > 0) bounds.extend(layerGroup.getBounds());
+    });
+  if (bounds.isValid()) mapInstance.fitBounds(bounds, { padding: [50, 50], maxZoom: 14 });
+
 }
 
 function formatOilQuantity(data) {
@@ -382,6 +428,7 @@ function setupLayerToggles() {
   const toggleOrigin = document.getElementById('toggle-origin');
   const toggleDrift = document.getElementById('toggle-drift');
   const toggleVessels = document.getElementById('toggle-vessels');
+  const togglePrediction = document.getElementById('toggle-prediction');
 
  
   if (toggleSpill) {
@@ -406,6 +453,12 @@ function setupLayerToggles() {
     toggleVessels.addEventListener('change', (e) => {
       if (e.target.checked) mapInstance.addLayer(vesselsLayerGroup);
       else mapInstance.removeLayer(vesselsLayerGroup);
+    });
+  }
+  if (togglePrediction) {
+    togglePrediction.addEventListener('change', (e) => {
+      if (e.target.checked) mapInstance.addLayer(predictionLayerGroup);
+      else mapInstance.removeLayer(predictionLayerGroup);
     });
   }
 }

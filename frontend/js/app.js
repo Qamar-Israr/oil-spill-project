@@ -57,11 +57,9 @@ function displayIncident(data, { showBanner = false } = {}) {
     hideInvestigationBanner();
   }
 
-  // The existing map requires vessel coordinates and a drift line. Keep
-  // those layers empty when the data does not provide those data points.
   const mapData = {
     ...data,
-    candidates: data.candidates.filter(hasMapTrack),
+    candidates: data.candidates,
     driftPath: data.driftPath || []
   };
   initMap('map', mapData);
@@ -322,9 +320,8 @@ function adaptInvestigationResponse(response, imageName, incidentTimeIso) {
       uncertaintyRadiusMeters: Number(origin.uncertainty_km || 0) * 1000
     },
     spillPolygon: polygon.map(([lng, lat]) => [lat, lng]),
-    // The backend returns a predicted polygon, not a time-stepped path.
-    // Leave this empty rather than fabricating drift waypoints.
     driftPath: [],
+    predictedPolygonGeoJSON: prediction.predicted_polygon_geojson || null,
     forecastAvailable: Boolean(prediction.predicted_polygon_geojson),
     windVector: 'Unavailable',
     candidates: (response.vessels || []).map(adaptVessel)

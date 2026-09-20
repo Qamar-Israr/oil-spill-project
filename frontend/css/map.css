@@ -152,6 +152,8 @@
 
 .color-vessels { background-color: #0062ff; border: 1px solid #0062ff; }
 
+.color-prediction { background-color: transparent; border: 1px dashed #f59e0b; }
+
 .vessel-marker-icon {
   transition: transform 0.2s ease;
 }
