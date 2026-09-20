@@ -9,6 +9,8 @@ import { saveIncident, seedSampleIncident, formatArchiveId } from './archive.js'
 
 import { renderIncidentsArchive, setArchiveStatus } from './incidents.js';
 
+import { refreshReportMapSize, renderForensicReport, setupReportActions } from './report.js';
+
 
 let currentIncidentData = null;
 let investigationBannerTimer = null;
@@ -19,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initializeApp();
   setupInvestigationForm();
   setupInvestigationBanner();
+  setupReportActions();
 });
 
 
@@ -64,6 +67,7 @@ function displayIncident(data, { showBanner = false } = {}) {
   };
   initMap('map', mapData);
   renderVesselPanel(data);
+  renderForensicReport(data);
 }
 
 function setupNavigation() {
@@ -86,6 +90,7 @@ function showView(viewId) {
 
   if (viewId === 'view-dashboard') refreshMapSize();
   if (viewId === 'view-incidents') refreshIncidentsArchive();
+  if (viewId === 'view-report') refreshReportMapSize();
   return true;
 }
 

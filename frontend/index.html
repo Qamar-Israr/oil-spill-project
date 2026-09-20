@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="css/map.css">
     <link rel="stylesheet" href="css/panels.css">
     <link rel="stylesheet" href="css/incidents.css">
+    <link rel="stylesheet" href="css/sysinfo.css">
 </head>
 <body>
     <div id="app-container">
@@ -200,6 +201,125 @@
                     </div>
 
                     <div id="incidents-status" class="incidents-status" role="status" aria-live="polite"></div>
+                </section>
+            </div>
+        </main>
+
+        <main id="view-report" class="app-view report-view">
+            <section class="report-shell">
+                <div class="report-toolbar">
+                    <div>
+                        <div class="eyebrow">Investigation Evidence</div>
+                        <h1>Forensic Report</h1>
+                    </div>
+                    <div class="report-actions">
+                        <button type="button" class="report-action" id="print-report">Print Report</button>
+                        <button type="button" class="report-action" id="save-report">Save Report</button>
+                        <button type="button" class="report-action" id="export-report">Export PDF</button>
+                    </div>
+                </div>
+                <div id="forensic-report-content" class="report-content"></div>
+            </section>
+        </main>
+
+        <main id="view-about" class="app-view sysinfo-view">
+            <div class="sysinfo-layout custom-scroll">
+                <section class="sysinfo-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">SYSTEM INFORMATION</span>
+                    </div>
+                    <div class="sysinfo-body">
+                        <div class="sysinfo-page-header">
+                            <h2 class="sysinfo-heading">System Pipeline</h2>
+                            <p class="sysinfo-subtitle">End-to-end investigation stages executed for every SAR upload — from image ingestion to forensic source attribution.</p>
+                        </div>
+
+                        <ol class="pipeline">
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">01</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Input</span>
+                                    <h3 class="stage-title">SAR Detection</h3>
+                                    <p class="stage-desc">Detects potential oil-spill signatures from Synthetic Aperture Radar imagery. The model identifies dark anomalies consistent with surface oil films.</p>
+                                    <p class="stage-output">↳ Spill mask · Detection confidence</p>
+                                </div>
+                            </li>
+                            <li class="pipeline-connector" aria-hidden="true"><span class="connector-line"></span></li>
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">02</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Geometry</span>
+                                    <h3 class="stage-title">Spill Geometry</h3>
+                                    <p class="stage-desc">Determines the approximate shape, area, and spatial characteristics of the detected spill by fitting a polygon to the segmentation mask.</p>
+                                    <p class="stage-output">↳ Area (km²) · Polygon boundary · Length (nm)</p>
+                                </div>
+                            </li>
+                            <li class="pipeline-connector" aria-hidden="true"><span class="connector-line"></span></li>
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">03</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Estimation</span>
+                                    <h3 class="stage-title">Oil Quantity Estimate</h3>
+                                    <p class="stage-desc">Estimates the approximate quantity of oil based on the detected spill area and an assumed film thickness range. Results are a bounded estimate, not an exact measurement.</p>
+                                    <p class="stage-output">↳ Volume range (m³) · Mass range (tonnes) · Thickness assumption (µm)</p>
+                                </div>
+                            </li>
+                            <li class="pipeline-connector" aria-hidden="true"><span class="connector-line"></span></li>
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">04</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Reconstruction</span>
+                                    <h3 class="stage-title">Origin Reconstruction</h3>
+                                    <p class="stage-desc">Uses Lagrangian drift back-propagation from the spill's observed location to reconstruct the probable source point and discharge time window.</p>
+                                    <p class="stage-output">↳ Origin lat/lng · Uncertainty radius (km) · Discharge window</p>
+                                </div>
+                            </li>
+                            <li class="pipeline-connector" aria-hidden="true"><span class="connector-line"></span></li>
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">05</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Correlation</span>
+                                    <h3 class="stage-title">AIS Correlation</h3>
+                                    <p class="stage-desc">Cross-references the reconstructed origin with vessel trajectory data. Identifies vessels that were spatially and temporally proximate to the discharge window.</p>
+                                    <p class="stage-output">↳ Candidate vessel list · AIS gap flags · Trajectory overlap</p>
+                                </div>
+                            </li>
+                            <li class="pipeline-connector" aria-hidden="true"><span class="connector-line"></span></li>
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">06</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Scoring</span>
+                                    <h3 class="stage-title">Candidate Ranking</h3>
+                                    <p class="stage-desc">Scores each candidate vessel using a composite metric: proximity to origin, trajectory alignment, AIS signal gaps, and speed anomalies. Vessels are ranked highest-to-lowest.</p>
+                                    <p class="stage-output">↳ Suspicion score (0–100) · Risk level · Score breakdown</p>
+                                </div>
+                            </li>
+                            <li class="pipeline-connector" aria-hidden="true"><span class="connector-line"></span></li>
+                            <li class="pipeline-stage">
+                                <div class="stage-marker"><span class="stage-number">07</span></div>
+                                <div class="stage-content">
+                                    <span class="stage-tag">Forecast</span>
+                                    <h3 class="stage-title">Drift / Forecast</h3>
+                                    <p class="stage-desc">Uses wind and surface current vectors to project the spill's predicted position and spread at +6 hours from SAR acquisition time.</p>
+                                    <p class="stage-output">↳ +6 h predicted polygon · Drift path waypoints</p>
+                                </div>
+                            </li>
+                        </ol>
+
+                        <div class="sysinfo-assumptions">
+                            <div class="assumptions-header">Data &amp; Assumptions</div>
+                            <div class="assumptions-body">
+                                <div class="assumption-row">
+                                    <svg class="assumption-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    <p>AIS source: Synthetic demonstration data — vessel positions and tracks are simulated and do not represent real maritime traffic.</p>
+                                </div>
+                                <div class="assumption-row">
+                                    <svg class="assumption-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                    <p>Oil quantity is an estimate based on assumed film thickness. Actual volume may differ depending on emulsification, weathering, and sub-surface components.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </section>
             </div>
         </main>

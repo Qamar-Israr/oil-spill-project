@@ -123,7 +123,7 @@ function buildTrack(vessel, risk) {
     }
   }
 
-  const arrows = [edges[edges.length - 1]].map(([a, b]) => {
+  const arrows = edges.length ? [edges[edges.length - 1]].map(([a, b]) => {
     const angle = bearingDeg(a, b);
 
     const marker = L.marker(
@@ -145,7 +145,7 @@ function buildTrack(vessel, risk) {
         selected: arrowIcon(angle, TRACK_STATES.selected.arrowSize)
       }
     };
-  });
+  }) : [];
 
   return { risk, halo, segments, arrows };
 }
@@ -198,7 +198,9 @@ function applyTrackStyles(selectedId) {
 export function initMap(containerId, incidentData) {
   
   if (mapInstance) {
+    mapInstance.off();
     mapInstance.remove();
+    mapInstance = null;
   }
 
    currentIncident = incidentData;
